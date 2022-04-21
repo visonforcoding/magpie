@@ -1,28 +1,20 @@
-package com.vison.magpie.http;
+package com.vison.magpie.websocket;
 
-import org.apache.log4j.Logger;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.digest.MessageDigestAlgorithms;
 
+import java.io.*;
 import java.net.Socket;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.IOException;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.*;
+import java.util.Base64;
+import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.codec.digest.MessageDigestAlgorithms;
-
-
+@Slf4j
 public class Handler extends Thread {
-    private static final Logger log = Logger.getLogger(Handler.class.getName());
     Socket sock;
 
     public Handler(Socket sock) {
@@ -35,18 +27,17 @@ public class Handler extends Thread {
                 handle(input, output);
             }
         } catch (Exception e) {
-            System.out.print(e.getClass());
+            log.error(String.valueOf(e.getClass()));
             try {
                 this.sock.close();
             } catch (IOException ioe) {
             }
-            System.out.println("client disconnected.");
+            log.info("client disconnected.");
         }
     }
 
-    private void handle(InputStream input, OutputStream output) throws IOException {
-        System.out.println("Process new http request...");
-        var reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
+    private void handle(InputStream input, OutputStream output) throws IOException, InterruptedException {
+        log.info("Process new http request...");
         var writer = new BufferedWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
         Scanner s = new Scanner(input, StandardCharsets.UTF_8);
         String data = s.useDelimiter("\r\n").next();
@@ -61,18 +52,19 @@ public class Handler extends Thread {
                     matchWebsocketKey = matchWebsocket.group(1);
                     System.out.print(matchWebsocket.group());
                     handlerWebsocket(matchWebsocketKey,writer);
-                    int count=-1;
-                    byte[] buff=new byte[1024];
-                    count=input.read(buff);
-                    System.out.println("接收的字节数："+count);
-                    for(int i=0;i<count-6;i++){
-                        buff[i+6]=(byte)(buff[i%4+2]^buff[i+6]);
+                    while (true){
+                        int count=-1;
+                        byte[] buff=new byte[1024];
+                        count=input.read(buff);
+                        System.out.println("接收的字节数："+count);
+                        for(int i=0;i<count-6;i++){
+                            buff[i+6]=(byte)(buff[i%4+2]^buff[i+6]);
+                        }
+                        System.out.println("接收的内容："+new String(buff, 6, count-6, "UTF-8"));
+                        Thread.sleep(100);
                     }
-                    System.out.println("接收的内容："+new String(buff, 6, count-6, "UTF-8"));
                 }
-
             }
-//            log.info("yes");
         }
     }
 
